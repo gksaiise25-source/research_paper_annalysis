@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: researchiq_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: researchiq
+      POSTGRES_PASSWORD: researchiq123
+      POSTGRES_DB: researchiq_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U researchiq -d researchiq_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: researchiq_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://researchiq:researchiq123@db:5432/researchiq_db
+      SECRET_KEY: production-secret-key-researchiq-super-secure-token-32
+      FRONTEND_URL: http://localhost:3001
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENALEX_EMAIL: ${OPENALEX_EMAIL:-user@example.com}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: researchiq_frontend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
